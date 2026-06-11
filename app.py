@@ -2,13 +2,24 @@
 
 실행: streamlit run app.py
 """
+import importlib
+
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
 import config
+import data_fetcher
 import database
 import notifier
+import signal_engine
+
+# Streamlit은 재배포/파일 변경 시 메인 스크립트만 다시 실행하고 import된 모듈은
+# 캐시된 구버전을 재사용한다 → 새 app.py가 옛 config를 읽다 AttributeError가 나는
+# 문제를 막기 위해 의존성 순서대로 강제 리로드한다 (모두 가벼운 모듈).
+for _module in (config, data_fetcher, signal_engine, database, notifier):
+    importlib.reload(_module)
+
 from data_fetcher import get_all_data
 from signal_engine import run_engine
 
