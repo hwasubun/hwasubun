@@ -15,6 +15,10 @@ import yfinance as yf
 import config
 
 FRED_CSV_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}"
+WORLDBANK_DEBT_URL = (
+    "https://api.worldbank.org/v2/country/{country}/indicator/"
+    "GC.DOD.TOTL.GD.ZS?format=json&per_page=200"
+)
 TREASURY_CSV_URL = (
     "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/"
     "daily-treasury-rates.csv/{year}/all?type=daily_treasury_real_yield_curve&_format=csv"
@@ -94,6 +98,36 @@ def fetch_treasury_real_10y() -> pd.Series:
     return s
 
 
+def fetch_worldbank_debt_gdp(country: str = "US") -> pd.Series:
+    """World Bank 중앙정부부채/GDP (GC.DOD.TOTL.GD.ZS, 연간)."""
+    resp = requests.get(WORLDBANK_DEBT_URL.format(country=country),
+                        headers=_HEADERS, timeout=_TIMEOUT)
+    resp.raise_for_status()
+    payload = resp.json()
+    if not isinstance(payload, list) or len(payload) < 2 or not payload[1]:
+        raise RuntimeError(f"World Bank 응답 형식 오류: {str(payload)[:200]}")
+    records = sorted(
+        (int(row["date"]), float(row["value"]))
+        for row in payload[1] if row.get("value") is not None
+    )
+    if not records:
+        raise RuntimeError("World Bank 부채/GDP 데이터 없음")
+    s = pd.Series(
+        [value for _, value in records],
+        index=pd.to_datetime([f"{year}-12-31" for year, _ in records]),
+        name="WB GC.DOD.TOTL.GD.ZS",
+    )
+    return s
+
+
+def fetch_debt_gdp() -> pd.Series:
+    """부채/GDP — World Bank 우선, 실패 시 FRED 폴백."""
+    try:
+        return fetch_worldbank_debt_gdp()
+    except Exception:  # noqa: BLE001 — FRED로 폴백
+        return fetch_fred(config.FRED_DEBT_GDP)
+
+
 def fetch_fred(series_id: str) -> pd.Series:
     if config.FRED_API_KEY:
         from fredapi import Fred
@@ -124,7 +158,7 @@ def get_all_data() -> tuple[dict[str, pd.Series], dict[str, str]]:
         "gold": lambda: fetch_market(config.GOLD_TICKERS),
         "dxy": lambda: fetch_market(config.DXY_TICKERS),
         "real_rate": lambda: fetch_fred(config.FRED_REAL_RATE),
-        "debt_gdp": lambda: fetch_fred(config.FRED_DEBT_GDP),
+        "debt_gdp": fetch_debt_gdp,
     }
     data, errors = {}, {}
     for name, fn in fetchers.items():

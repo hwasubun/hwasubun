@@ -69,7 +69,7 @@ schtasks /Delete /TN "DalioSignalMonitor" /F    # 등록 해제
 | 금 가격 | yfinance `GC=F` | 전월 대비 ±5% |
 | 달러인덱스 | yfinance `DX-Y.NYB` | 100 이하 |
 | 미 10Y 실질금리 | FRED `DFII10` | 0% 이하 |
-| 미 부채/GDP | FRED `GFDEGDQ188S` | 120% 이상 |
+| 미 부채/GDP | World Bank `GC.DOD.TOTL.GD.ZS` (연간, FRED 폴백) | 120% 이상 |
 
 | 규칙 | IF | THEN |
 |---|---|---|
