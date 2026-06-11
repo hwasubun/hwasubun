@@ -51,7 +51,7 @@ FRED_DEBT_GDP = "GFDEGDQ188S"    # 미국 연방부채/GDP (분기)
 GOLD_CHANGE_THRESHOLD = 5.0      # 전월 대비 변동률 (%)
 DXY_THRESHOLD = 100.0            # 달러인덱스 약세 기준
 REAL_RATE_THRESHOLD = 0.0        # 실질금리 (%)
-DEBT_GDP_THRESHOLD = 120.0       # 부채/GDP (%)
+DEBT_GDP_THRESHOLD = 115.0       # 부채/GDP (%) — World Bank 중앙정부부채 기준 (FRED 총부채 120% 상당)
 
 # ── 스케줄러 ─────────────────────────────────────────────
 SCHEDULE_HOUR = 9                # 매일 오전 9시

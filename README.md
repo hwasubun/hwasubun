@@ -69,13 +69,13 @@ schtasks /Delete /TN "DalioSignalMonitor" /F    # 등록 해제
 | 금 가격 | yfinance `GC=F` | 전월 대비 ±5% |
 | 달러인덱스 | yfinance `DX-Y.NYB` | 100 이하 |
 | 미 10Y 실질금리 | FRED `DFII10` | 0% 이하 |
-| 미 부채/GDP | World Bank `GC.DOD.TOTL.GD.ZS` (연간, FRED 폴백) | 120% 이상 |
+| 미 부채/GDP | World Bank `GC.DOD.TOTL.GD.ZS` (연간, FRED 폴백) | 115% 이상 |
 
 | 규칙 | IF | THEN |
 |---|---|---|
 | R1 (HIGH) | 금 +5%↑ AND 달러인덱스 < 100 | 인플레헤지 강화 |
 | R2 (HIGH) | 실질금리 ≤ 0% | 금·실물 비중 확대 |
-| R3 (WARNING) | 부채/GDP > 120% | 달러 장기 리스크 경고 |
+| R3 (WARNING) | 부채/GDP > 115% | 달러 장기 리스크 경고 |
 | R4 (INFO) | 금 ±5% 급변동 | 포지션·헤지 점검 |
 
 - HIGH 등급 신호 발동 시 텔레그램으로 자동 발송됩니다.
