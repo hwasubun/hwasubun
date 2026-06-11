@@ -98,7 +98,11 @@ if not data:
 
 _SERIES_LABEL = {"gold": "금", "dxy": "달러인덱스", "real_rate": "실질금리", "debt_gdp": "부채/GDP"}
 for name, err in errors.items():
-    st.warning(f"{_SERIES_LABEL.get(name, name)} 데이터 수집 실패 — 해당 규칙은 평가에서 제외됩니다. ({err})")
+    label = _SERIES_LABEL.get(name, name)
+    if name in data:  # 캐시된 마지막 값으로 폴백한 경우 — 평가는 계속됨
+        st.info(f"ℹ️ {label}: {err}")
+    else:
+        st.warning(f"{label} 데이터 수집 실패 — 해당 규칙은 평가에서 제외됩니다. ({err})")
 
 indicators, signals = run_engine(data)
 database.save_triggered(signals)

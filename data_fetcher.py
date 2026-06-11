@@ -20,6 +20,31 @@ TREASURY_CSV_URL = (
     "daily-treasury-rates.csv/{year}/all?type=daily_treasury_real_yield_curve&_format=csv"
 )
 _HEADERS = {"User-Agent": "Mozilla/5.0 (dalio-signal-app)"}
+_TIMEOUT = 60  # FRED 공개 엔드포인트가 느릴 때가 많아 넉넉하게
+
+# 성공한 수집 결과를 저장해 두는 로컬 캐시 — 실시간 수집 실패 시 마지막 값으로 폴백
+CACHE_DIR = config.BASE_DIR / "data_cache"
+
+
+def _save_cache(name: str, series: pd.Series) -> None:
+    try:
+        CACHE_DIR.mkdir(exist_ok=True)
+        series.to_csv(CACHE_DIR / f"{name}.csv")
+    except OSError:
+        pass  # 캐시 저장 실패는 치명적이지 않음
+
+
+def _load_cache(name: str) -> pd.Series | None:
+    path = CACHE_DIR / f"{name}.csv"
+    if not path.exists():
+        return None
+    try:
+        df = pd.read_csv(path, index_col=0, parse_dates=True)
+        s = df.iloc[:, 0].dropna()
+        s.name = df.columns[0]
+        return s if not s.empty else None
+    except Exception:  # noqa: BLE001 — 캐시가 깨졌으면 없는 것으로 취급
+        return None
 
 
 def fetch_market(tickers: list[str], period: str = "2y") -> pd.Series:
@@ -43,7 +68,7 @@ def fetch_market(tickers: list[str], period: str = "2y") -> pd.Series:
 
 
 def _fetch_fred_csv(series_id: str) -> pd.Series:
-    resp = requests.get(FRED_CSV_URL.format(sid=series_id), headers=_HEADERS, timeout=30)
+    resp = requests.get(FRED_CSV_URL.format(sid=series_id), headers=_HEADERS, timeout=_TIMEOUT)
     resp.raise_for_status()
     df = pd.read_csv(io.StringIO(resp.text), na_values=".")
     df.columns = ["date", "value"]
@@ -58,7 +83,7 @@ def fetch_treasury_real_10y() -> pd.Series:
     year = datetime.now().year
     frames = []
     for y in (year - 1, year):
-        resp = requests.get(TREASURY_CSV_URL.format(year=y), headers=_HEADERS, timeout=30)
+        resp = requests.get(TREASURY_CSV_URL.format(year=y), headers=_HEADERS, timeout=_TIMEOUT)
         resp.raise_for_status()
         df = pd.read_csv(io.StringIO(resp.text))
         df["Date"] = pd.to_datetime(df["Date"])
@@ -89,7 +114,12 @@ def fetch_fred(series_id: str) -> pd.Series:
 
 
 def get_all_data() -> tuple[dict[str, pd.Series], dict[str, str]]:
-    """전체 시계열 수집. 실패한 시리즈는 건너뛰고 (데이터, 오류) 튜플로 반환."""
+    """전체 시계열 수집 후 (데이터, 오류) 튜플 반환.
+
+    성공한 시리즈는 data_cache/에 저장된다. 실시간 수집이 실패하면 캐시된
+    마지막 값으로 폴백한다(data에 포함 + errors에 사유 기록). 캐시도 없으면
+    해당 시리즈는 data에서 빠지고 errors에만 남는다.
+    """
     fetchers = {
         "gold": lambda: fetch_market(config.GOLD_TICKERS),
         "dxy": lambda: fetch_market(config.DXY_TICKERS),
@@ -100,8 +130,17 @@ def get_all_data() -> tuple[dict[str, pd.Series], dict[str, str]]:
     for name, fn in fetchers.items():
         try:
             data[name] = fn()
+            _save_cache(name, data[name])
         except Exception as e:  # noqa: BLE001 — 시리즈 단위로 격리
-            errors[name] = str(e)
+            cached = _load_cache(name)
+            if cached is not None:
+                data[name] = cached
+                errors[name] = (
+                    f"실시간 수집 실패 — 캐시된 마지막 값 사용"
+                    f" (기준일 {cached.index[-1].date()}): {e}"
+                )
+            else:
+                errors[name] = str(e)
     return data, errors
 
 
