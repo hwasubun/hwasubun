@@ -316,6 +316,46 @@ with pie_col:
     else:
         st.info("배분된 자산이 없습니다. 슬라이더를 조정하거나 기본값 버튼을 누르세요.")
 
+# ── 신호 백테스트 ────────────────────────────────────────
+st.subheader("신호 백테스트")
+st.caption("과거 시계열로 각 규칙의 발동 시점(진입 기준)을 소급 계산하고, 이후 1/3/6/12개월 "
+           "자산 수익률을 전체 기간 평균과 비교합니다. 부채/GDP(R3)는 연간 데이터라 제외.")
+
+
+@st.cache_data(ttl=86400, show_spinner="과거 데이터 수집·계산 중... (최초 실행 시 1~2분)")
+def run_backtest_cached():
+    from backtest import run_backtest
+    return run_backtest()
+
+
+if st.button("📊 백테스트 실행"):
+    st.session_state["bt_requested"] = True
+
+if st.session_state.get("bt_requested"):
+    try:
+        bt_table, bt_counts = run_backtest_cached()
+    except Exception as e:  # noqa: BLE001
+        st.error(f"백테스트 실패: {e}")
+    else:
+        bt_rule = st.selectbox("규칙 선택", list(bt_table["규칙"].unique()))
+        st.markdown(f"**진입 횟수: {bt_counts[bt_rule]}회** (미발동→발동 전환 시점 기준)")
+        sub = bt_table[bt_table["규칙"] == bt_rule].drop(columns=["규칙", "진입횟수"])
+        st.dataframe(sub, hide_index=True, width="stretch")
+
+        excess_cols = [c for c in sub.columns if c.endswith("초과")]
+        ex = sub.set_index("자산")[excess_cols]
+        ex.columns = [c.replace(" 초과", "") for c in ex.columns]
+        fig_bt = go.Figure()
+        for horizon in ex.columns:
+            fig_bt.add_trace(go.Bar(name=horizon, x=ex.index, y=ex[horizon]))
+        fig_bt.update_layout(barmode="group", height=320, template="plotly_dark",
+                             margin=dict(l=10, r=10, t=30, b=10),
+                             title="발동 후 초과수익 (전체 기간 평균 대비, %p)",
+                             yaxis_title="%p")
+        st.plotly_chart(fig_bt, width="stretch")
+        st.caption("⚠️ 진입 횟수가 적은 규칙(특히 R2)은 통계적 신뢰도가 낮습니다. "
+                   "실질금리(DFII10)는 2003년, 그 외는 자산별 상장 시점부터 계산됩니다.")
+
 # ── 신호 이력 ────────────────────────────────────────────
 st.subheader("신호 이력 (SQLite)")
 history = database.load_history()
