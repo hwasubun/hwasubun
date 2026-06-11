@@ -12,17 +12,23 @@ def _get_secret(name: str, default: str = "") -> str:
     """우선순위: 환경변수(.env 포함) → Streamlit secrets → 기본값.
 
     로컬은 .env, Streamlit Cloud는 앱 설정의 Secrets(st.secrets)로 키를 관리한다.
+    st.secrets는 최상위 키와 [섹션] 아래 키를 모두 탐색한다.
     secrets.toml이 없거나 streamlit 외부(scheduler.py 등)에서 호출돼도 안전하다.
     """
     value = os.getenv(name, "")
     if value:
-        return value
+        return value.strip()
     try:
         import streamlit as st
 
-        return str(st.secrets.get(name, default))
+        if name in st.secrets:  # 최상위 키
+            return str(st.secrets[name]).strip()
+        for section in st.secrets.values():  # [general] 등 섹션 아래 키
+            if hasattr(section, "get") and name in section:
+                return str(section[name]).strip()
     except Exception:  # noqa: BLE001 — secrets 미설정/비-streamlit 환경
-        return default
+        pass
+    return default
 
 
 # ── 시크릿 (모두 선택 사항 — 없어도 앱은 동작) ──────────────

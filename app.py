@@ -81,6 +81,14 @@ with st.sidebar:
     )
 
     st.divider()
+    st.subheader("데이터 소스")
+    if config.FRED_API_KEY:
+        st.success("FRED API 키 로드됨")
+    else:
+        st.info("FRED 키 없음 — 공개 CSV 폴백 사용 중. "
+                "Cloud에서는 Settings → Secrets에 FRED_API_KEY를 설정하세요.")
+
+    st.divider()
     st.subheader("텔레그램")
     if config.TELEGRAM_BOT_TOKEN and config.TELEGRAM_CHAT_ID:
         st.success("봇 설정됨")
