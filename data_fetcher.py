@@ -19,6 +19,9 @@ WORLDBANK_DEBT_URL = (
     "https://api.worldbank.org/v2/country/{country}/indicator/"
     "GC.DOD.TOTL.GD.ZS?format=json&per_page=200"
 )
+BIS_KR_HOUSEHOLD_URL = (
+    "https://stats.bis.org/api/v1/data/WS_TC/Q.KR.H.A.M.770.A/all?format=csv"
+)
 TREASURY_CSV_URL = (
     "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/"
     "daily-treasury-rates.csv/{year}/all?type={rtype}&_format=csv"
@@ -143,6 +146,26 @@ def fetch_debt_gdp() -> pd.Series:
         return fetch_fred(config.FRED_DEBT_GDP)
 
 
+def fetch_bis_kr_household_debt() -> pd.Series:
+    """BIS 한국 가계신용/GDP (분기, Q.KR.H.A.M.770.A)."""
+    resp = requests.get(BIS_KR_HOUSEHOLD_URL, headers=_HEADERS, timeout=_TIMEOUT)
+    resp.raise_for_status()
+    df = pd.read_csv(io.StringIO(resp.text))[["TIME_PERIOD", "OBS_VALUE"]].dropna()
+    if df.empty:
+        raise RuntimeError("BIS 한국 가계부채 데이터 없음")
+    idx = pd.PeriodIndex(df["TIME_PERIOD"], freq="Q").to_timestamp(how="end").normalize()
+    s = pd.Series(df["OBS_VALUE"].to_numpy(), index=idx, name="BIS KR Household/GDP")
+    return s.sort_index()
+
+
+def fetch_kr_household_debt() -> pd.Series:
+    """한국 가계부채/GDP — BIS 우선, 실패 시 FRED 미러 폴백."""
+    try:
+        return fetch_bis_kr_household_debt()
+    except Exception:  # noqa: BLE001 — FRED 미러로 폴백
+        return fetch_fred(config.FRED_KR_HOUSEHOLD)
+
+
 def fetch_fred(series_id: str) -> pd.Series:
     if config.FRED_API_KEY:
         from fredapi import Fred
@@ -176,6 +199,8 @@ def get_all_data() -> tuple[dict[str, pd.Series], dict[str, str]]:
         "real_rate": lambda: fetch_fred(config.FRED_REAL_RATE),
         "debt_gdp": fetch_debt_gdp,
         "yield_spread": fetch_yield_spread,
+        "krw": lambda: fetch_market(config.KRW_TICKERS),
+        "kr_household_debt": fetch_kr_household_debt,
     }
     data, errors = {}, {}
     for name, fn in fetchers.items():

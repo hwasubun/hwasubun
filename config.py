@@ -48,6 +48,7 @@ KRW_TICKERS = ["KRW=X"]          # 원/달러 환율
 # FRED 시리즈
 FRED_REAL_RATE = "DFII10"        # 미국 10년 실질금리 (일간)
 FRED_DEBT_GDP = "GFDEGDQ188S"    # 미국 연방부채/GDP (분기)
+FRED_KR_HOUSEHOLD = "QKRHAM770A" # 한국 가계부채/GDP (BIS 미러, 분기) — BIS 직접 수집 실패 시 폴백
 
 # ── 임계값 ───────────────────────────────────────────────
 GOLD_CHANGE_THRESHOLD = 5.0      # 전월 대비 변동률 (%)

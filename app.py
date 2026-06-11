@@ -105,7 +105,8 @@ if not data:
     st.stop()
 
 _SERIES_LABEL = {"gold": "금", "dxy": "달러인덱스", "copper": "구리", "real_rate": "실질금리",
-                 "debt_gdp": "부채/GDP", "yield_spread": "10Y-2Y 금리차"}
+                 "debt_gdp": "부채/GDP", "yield_spread": "10Y-2Y 금리차",
+                 "krw": "원/달러", "kr_household_debt": "한국 가계부채/GDP"}
 for name, err in errors.items():
     label = _SERIES_LABEL.get(name, name)
     if name in data:  # 캐시된 마지막 값으로 폴백한 경우 — 평가는 계속됨
@@ -130,11 +131,15 @@ m3.metric("📉 미 10Y 실질금리", fmt(indicators["real_rate"], "{:.2f}%"),
           f"기준 {config.REAL_RATE_THRESHOLD:.0f}%", delta_color="off")
 m4.metric("🏛️ 미 부채/GDP", fmt(indicators["debt_gdp"], "{:.1f}%"),
           f"기준 {config.DEBT_GDP_THRESHOLD:.0f}%", delta_color="off")
-m5, m6, _sp1, _sp2 = st.columns(4)
+m5, m6, m7, m8 = st.columns(4)
 m5.metric("⚖️ 금/구리 비율 (1개월 변동)", fmt(indicators.get("gold_copper"), "{:,.0f}"),
           fmt(indicators.get("gold_copper_change_1m"), "{:+.2f}%", None))
 m6.metric("📐 미 10Y-2Y 금리차", fmt(indicators.get("yield_spread"), "{:+.2f}%p"),
           "역전 기준 0%p", delta_color="off")
+m7.metric("🇰🇷 원/달러", fmt(indicators.get("krw"), "{:,.1f}원"),
+          f"기준 {config.KRW_THRESHOLD:,.0f}원", delta_color="off")
+m8.metric("🏠 한국 가계부채/GDP", fmt(indicators.get("kr_household_debt"), "{:.1f}%"),
+          f"기준 {config.KR_HOUSEHOLD_DEBT_THRESHOLD:.0f}%", delta_color="off")
 
 if triggered:
     st.error(f"🚨 현재 발동 중인 신호 {len(triggered)}건: " + " · ".join(s.name for s in triggered))
@@ -164,6 +169,10 @@ chart_specs = [
      f"임계 {config.DEBT_GDP_THRESHOLD:.0f}%"),
     ("gold_copper", lambda s: "금/구리 비율", indicators.get("gold_copper"), "현재값"),
     ("yield_spread", lambda s: "미 10Y-2Y 금리차 (%p)", config.YIELD_SPREAD_THRESHOLD, "역전선 0%p"),
+    ("krw", lambda s: f"원/달러 ({s.name})", config.KRW_THRESHOLD,
+     f"임계 {config.KRW_THRESHOLD:,.0f}원"),
+    ("kr_household_debt", lambda s: f"한국 가계부채/GDP ({s.name})",
+     config.KR_HOUSEHOLD_DEBT_THRESHOLD, f"임계 {config.KR_HOUSEHOLD_DEBT_THRESHOLD:.0f}%"),
 ]
 available = [spec for spec in chart_specs if spec[0] in data]
 for i in range(0, len(available), 2):
