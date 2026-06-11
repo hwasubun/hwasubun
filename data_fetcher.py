@@ -21,7 +21,7 @@ WORLDBANK_DEBT_URL = (
 )
 TREASURY_CSV_URL = (
     "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/"
-    "daily-treasury-rates.csv/{year}/all?type=daily_treasury_real_yield_curve&_format=csv"
+    "daily-treasury-rates.csv/{year}/all?type={rtype}&_format=csv"
 )
 _HEADERS = {"User-Agent": "Mozilla/5.0 (dalio-signal-app)"}
 _TIMEOUT = 60  # FRED 공개 엔드포인트가 느릴 때가 많아 넉넉하게
@@ -82,19 +82,34 @@ def _fetch_fred_csv(series_id: str) -> pd.Series:
     return s
 
 
-def fetch_treasury_real_10y() -> pd.Series:
-    """미 재무부 일별 실질수익률 곡선에서 10년 실질금리 (DFII10 대체)."""
-    year = datetime.now().year
+def _fetch_treasury_curve(rtype: str, years: int = 2) -> pd.DataFrame:
+    """미 재무부 일별 수익률 곡선 CSV (최근 N개년 병합, 컬럼명 대문자 정규화)."""
+    this_year = datetime.now().year
     frames = []
-    for y in (year - 1, year):
-        resp = requests.get(TREASURY_CSV_URL.format(year=y), headers=_HEADERS, timeout=_TIMEOUT)
+    for y in range(this_year - years + 1, this_year + 1):
+        resp = requests.get(TREASURY_CSV_URL.format(year=y, rtype=rtype),
+                            headers=_HEADERS, timeout=_TIMEOUT)
         resp.raise_for_status()
         df = pd.read_csv(io.StringIO(resp.text))
-        df["Date"] = pd.to_datetime(df["Date"])
-        frames.append(df.set_index("Date")["10 YR"])
-    s = pd.concat(frames).dropna().sort_index()
-    s = s[~s.index.duplicated(keep="last")]
+        df.columns = [c.strip().upper() for c in df.columns]
+        df["DATE"] = pd.to_datetime(df["DATE"])
+        frames.append(df.set_index("DATE"))
+    merged = pd.concat(frames).sort_index()
+    return merged[~merged.index.duplicated(keep="last")]
+
+
+def fetch_treasury_real_10y() -> pd.Series:
+    """미 재무부 실질수익률 곡선에서 10년 실질금리 (DFII10 대체)."""
+    s = _fetch_treasury_curve("daily_treasury_real_yield_curve")["10 YR"].dropna()
     s.name = "TREASURY_REAL_10Y"
+    return s
+
+
+def fetch_yield_spread() -> pd.Series:
+    """미 10Y-2Y 장단기 금리차 (%p) — 명목 수익률 곡선 기반."""
+    curve = _fetch_treasury_curve("daily_treasury_yield_curve")
+    s = (curve["10 YR"] - curve["2 YR"]).dropna()
+    s.name = "T10Y2Y"
     return s
 
 
@@ -157,8 +172,10 @@ def get_all_data() -> tuple[dict[str, pd.Series], dict[str, str]]:
     fetchers = {
         "gold": lambda: fetch_market(config.GOLD_TICKERS),
         "dxy": lambda: fetch_market(config.DXY_TICKERS),
+        "copper": lambda: fetch_market(config.COPPER_TICKERS),
         "real_rate": lambda: fetch_fred(config.FRED_REAL_RATE),
         "debt_gdp": fetch_debt_gdp,
+        "yield_spread": fetch_yield_spread,
     }
     data, errors = {}, {}
     for name, fn in fetchers.items():

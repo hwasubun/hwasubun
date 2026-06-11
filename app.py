@@ -104,7 +104,8 @@ if not data:
     st.error("모든 데이터 수집에 실패했습니다. 네트워크 또는 FRED_API_KEY 설정을 확인하세요.")
     st.stop()
 
-_SERIES_LABEL = {"gold": "금", "dxy": "달러인덱스", "real_rate": "실질금리", "debt_gdp": "부채/GDP"}
+_SERIES_LABEL = {"gold": "금", "dxy": "달러인덱스", "copper": "구리", "real_rate": "실질금리",
+                 "debt_gdp": "부채/GDP", "yield_spread": "10Y-2Y 금리차"}
 for name, err in errors.items():
     label = _SERIES_LABEL.get(name, name)
     if name in data:  # 캐시된 마지막 값으로 폴백한 경우 — 평가는 계속됨
@@ -129,6 +130,11 @@ m3.metric("📉 미 10Y 실질금리", fmt(indicators["real_rate"], "{:.2f}%"),
           f"기준 {config.REAL_RATE_THRESHOLD:.0f}%", delta_color="off")
 m4.metric("🏛️ 미 부채/GDP", fmt(indicators["debt_gdp"], "{:.1f}%"),
           f"기준 {config.DEBT_GDP_THRESHOLD:.0f}%", delta_color="off")
+m5, m6, _sp1, _sp2 = st.columns(4)
+m5.metric("⚖️ 금/구리 비율 (1개월 변동)", fmt(indicators.get("gold_copper"), "{:,.0f}"),
+          fmt(indicators.get("gold_copper_change_1m"), "{:+.2f}%", None))
+m6.metric("📐 미 10Y-2Y 금리차", fmt(indicators.get("yield_spread"), "{:+.2f}%p"),
+          "역전 기준 0%p", delta_color="off")
 
 if triggered:
     st.error(f"🚨 현재 발동 중인 신호 {len(triggered)}건: " + " · ".join(s.name for s in triggered))
@@ -137,19 +143,27 @@ else:
 
 # ── 신호 카드 ────────────────────────────────────────────
 st.subheader("IF-THEN 신호")
-cols = st.columns(len(signals))
-for col, s in zip(cols, signals):
-    signal_card(col, s)
+for i in range(0, len(signals), 3):
+    cols = st.columns(3)
+    for col, s in zip(cols, signals[i:i + 3]):
+        signal_card(col, s)
 
 # ── 차트 ─────────────────────────────────────────────────
 st.subheader("지표 차트 (최근 2년)")
-# (시리즈 키, 제목, 기준선 값, 기준선 라벨) — 금은 변동률 기준이라 현재가를 기준선으로 표시
+# 파생 시계열: 금/구리 비율 (캐시된 dict를 변형하지 않도록 복사본 사용)
+data = dict(data)
+if "gold" in data and "copper" in data:
+    data["gold_copper"] = (data["gold"] / data["copper"]).dropna().rename("GOLD/COPPER")
+
+# (시리즈 키, 제목, 기준선 값, 기준선 라벨) — 금·비율은 변동률 기준이라 현재값을 기준선으로 표시
 chart_specs = [
     ("gold", lambda s: f"금 ({s.name})", indicators["gold_price"], "현재가"),
     ("dxy", lambda s: f"달러인덱스 ({s.name})", config.DXY_THRESHOLD, f"임계 {config.DXY_THRESHOLD:.0f}"),
     ("real_rate", lambda s: f"미국 10년 실질금리 ({s.name})", config.REAL_RATE_THRESHOLD, "임계 0%"),
     ("debt_gdp", lambda s: f"미국 연방부채/GDP ({s.name})", config.DEBT_GDP_THRESHOLD,
      f"임계 {config.DEBT_GDP_THRESHOLD:.0f}%"),
+    ("gold_copper", lambda s: "금/구리 비율", indicators.get("gold_copper"), "현재값"),
+    ("yield_spread", lambda s: "미 10Y-2Y 금리차 (%p)", config.YIELD_SPREAD_THRESHOLD, "역전선 0%p"),
 ]
 available = [spec for spec in chart_specs if spec[0] in data]
 for i in range(0, len(available), 2):

@@ -5,6 +5,8 @@
   R2. IF 미국 10년 실질금리 ≤ 0%                → 금·실물 비중 확대 (HIGH)
   R3. IF 미국 부채/GDP > 120%                   → 달러 장기 리스크 (WARNING)
   R4. IF 금 전월 대비 ±5% 이상 변동             → 포지션·헤지 점검 (INFO)
+  R5. IF 금/구리 비율 전월 대비 +10% 이상       → 리스크오프 경계 (WARNING)
+  R6. IF 미 10Y-2Y 금리차 ≤ 0 (역전)            → 침체 선행 경고 (WARNING)
 
 데이터가 누락된 지표의 규칙은 발동하지 않고 '데이터 없음'으로 표시한다.
 """
@@ -57,6 +59,18 @@ def compute_indicators(data: dict[str, pd.Series]) -> dict:
     put("dxy", "dxy", lambda s: float(s.iloc[-1]))
     put("real_rate", "real_rate", lambda s: float(s.iloc[-1]))
     put("debt_gdp", "debt_gdp", lambda s: float(s.iloc[-1]))
+    put("yield_spread", "yield_spread", lambda s: float(s.iloc[-1]))
+
+    # 금/구리 비율 — 두 시계열이 모두 있어야 계산 가능
+    gold_s, copper_s = data.get("gold"), data.get("copper")
+    if gold_s is not None and copper_s is not None and not gold_s.empty and not copper_s.empty:
+        ratio = (gold_s / copper_s).dropna()
+        out["gold_copper"] = float(ratio.iloc[-1])
+        out["gold_copper_change_1m"] = _monthly_change_pct(ratio)
+        out["gold_copper_date"] = ratio.index[-1].date().isoformat()
+    else:
+        out["gold_copper"] = out["gold_copper_change_1m"] = None
+        out["gold_copper_date"] = None
     return out
 
 
@@ -66,6 +80,8 @@ def evaluate(indicators: dict) -> list[Signal]:
     dxy = indicators.get("dxy")
     rr = indicators.get("real_rate")
     debt = indicators.get("debt_gdp")
+    gc_chg = indicators.get("gold_copper_change_1m")
+    spread = indicators.get("yield_spread")
 
     return [
         Signal(
@@ -109,6 +125,27 @@ def evaluate(indicators: dict) -> list[Signal]:
                 f"금 1개월 변동 {_fmt(g_chg, '{:+.2f}%')}"
                 f" (현재가 {_fmt(indicators.get('gold_price'), '{:,.1f}')})"
             ),
+        ),
+        Signal(
+            rule_id="R5",
+            name="리스크오프 경계",
+            condition=f"금/구리 비율 전월 대비 +{config.GOLD_COPPER_CHANGE_THRESHOLD:.0f}% 이상 상승",
+            action="안전자산 선호 급증 — 경기둔화 대비, 방어 포지션 점검",
+            severity="WARNING",
+            triggered=bool(gc_chg is not None and gc_chg >= config.GOLD_COPPER_CHANGE_THRESHOLD),
+            detail=(
+                f"금/구리 비율 1개월 변동 {_fmt(gc_chg, '{:+.2f}%')}"
+                f" (현재 {_fmt(indicators.get('gold_copper'), '{:,.0f}')})"
+            ),
+        ),
+        Signal(
+            rule_id="R6",
+            name="침체 선행 경고",
+            condition=f"미 10Y-2Y 금리차 ≤ {config.YIELD_SPREAD_THRESHOLD:.0f}%p (역전)",
+            action="수익률곡선 역전 — 향후 12~18개월 침체 가능성, 듀레이션·방어자산 점검",
+            severity="WARNING",
+            triggered=bool(spread is not None and spread <= config.YIELD_SPREAD_THRESHOLD),
+            detail=f"10Y-2Y {_fmt(spread, '{:+.2f}%p')} ({indicators.get('yield_spread_date') or '-'})",
         ),
     ]
 

@@ -42,6 +42,8 @@ DB_PATH = BASE_DIR / "signals.db"
 # yfinance 티커 (대체 티커 포함 — 첫 번째가 실패하면 다음 시도)
 GOLD_TICKERS = ["GC=F", "GLD"]
 DXY_TICKERS = ["DX-Y.NYB", "DX=F"]
+COPPER_TICKERS = ["HG=F"]        # 구리 선물 (금/구리 비율용)
+KRW_TICKERS = ["KRW=X"]          # 원/달러 환율
 
 # FRED 시리즈
 FRED_REAL_RATE = "DFII10"        # 미국 10년 실질금리 (일간)
@@ -52,6 +54,10 @@ GOLD_CHANGE_THRESHOLD = 5.0      # 전월 대비 변동률 (%)
 DXY_THRESHOLD = 100.0            # 달러인덱스 약세 기준
 REAL_RATE_THRESHOLD = 0.0        # 실질금리 (%)
 DEBT_GDP_THRESHOLD = 115.0       # 부채/GDP (%) — World Bank 중앙정부부채 기준 (FRED 총부채 120% 상당)
+GOLD_COPPER_CHANGE_THRESHOLD = 10.0  # 금/구리 비율 전월 대비 상승률 (%) — 리스크오프 신호
+YIELD_SPREAD_THRESHOLD = 0.0     # 10Y-2Y 금리차 (%p) — 0 이하 = 역전
+KRW_THRESHOLD = 1450.0           # 원/달러 — 원화 약세 경고
+KR_HOUSEHOLD_DEBT_THRESHOLD = 95.0  # 한국 가계부채/GDP (%) — BIS 기준
 
 # ── 스케줄러 ─────────────────────────────────────────────
 SCHEDULE_HOUR = 9                # 매일 오전 9시

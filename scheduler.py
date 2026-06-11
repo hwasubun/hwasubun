@@ -36,7 +36,9 @@ def daily_job() -> None:
 
     print(f"  지표: 금 {fmt('gold_price', '{:,.1f}')} ({fmt('gold_change_1m', '{:+.2f}%')}/1M), "
           f"DXY {fmt('dxy', '{:.2f}')}, 실질금리 {fmt('real_rate', '{:.2f}%')}, "
-          f"부채/GDP {fmt('debt_gdp', '{:.1f}%')}")
+          f"부채/GDP {fmt('debt_gdp', '{:.1f}%')}, "
+          f"금/구리 {fmt('gold_copper', '{:,.0f}')} ({fmt('gold_copper_change_1m', '{:+.2f}%')}/1M), "
+          f"10Y-2Y {fmt('yield_spread', '{:+.2f}%p')}")
     print(f"  발동 신호 {len(triggered)}건 / 신규 저장 {saved}건 / 텔레그램 발송 {sent}건")
     for s in triggered:
         print(f"    - [{s.severity}] {s.name}: {s.detail}")
